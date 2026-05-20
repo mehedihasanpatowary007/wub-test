@@ -12,7 +12,7 @@ CRM Round Robin Lead Assignment
 - Skips already-assigned leads (user_id is set)
 - Skips inactive team members
     """,
-    'author': 'Custom',
+    'author': 'Anwar',
     'depends': ['crm','bdcalling_crm_lead_api'],
     'data': [
         'security/ir.model.access.csv',

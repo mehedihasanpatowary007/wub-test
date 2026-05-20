@@ -1,17 +1,8 @@
-<?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data noupdate="1">
-
-        <record id="ir_cron_crm_round_robin" model="ir.cron">
-            <field name="name">CRM: Round Robin Lead Assignment</field>
-            <field name="model_id" ref="crm.model_crm_team"/>
-            <field name="state">code</field>
-            <field name="code">model._cron_assign_leads_round_robin()</field>
-            <field name="interval_number">1</field>
-            <field name="interval_type">days</field>
-            <field name="active">True</field>
-            <field name="user_id" ref="base.user_root"/>
-        </record>
-
-    </data>
+<data noupdate="0">
+<!--  Odoo 19 এর built-in lead assignment cron কে override করছি  -->
+<record id="crm.ir_cron_crm_lead_assign" model="ir.cron">
+<field name="code">model._rr_cron_assign_leads()</field>
+</record>
+</data>
 </odoo>
