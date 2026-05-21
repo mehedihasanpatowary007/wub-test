@@ -14,11 +14,9 @@ class CrmTeam(models.Model):
         copy=False,
     )
 
-    #  Auto Cron 
-    @api.model
-    def _rr_cron_assign_leads(self):
-        _logger.info('Round Robin CRON: started.')
-        teams = self.search([
+    #  Odoo built-in Rule-Based Assignment Cron 
+    def _action_assign_leads(self, work_days=False, **kwargs):
+        teams = self if self.ids else self.search([
             ('active', '=', True),
             ('assignment_optout', '=', False),
         ])
@@ -26,13 +24,12 @@ class CrmTeam(models.Model):
             assigned, merged = team._assign_unassigned_leads_round_robin()
             msg = (
                 f'Round Robin (Auto): {assigned} lead(s) assigned. '
-                # f'Next: {team.rr_last_user_id.name or "N/A"}'
+                f'{team.rr_last_user_id.name or "N/A"}'
             )
             if merged:
                 msg += f' | {merged} duplicate(s) merged.'
             if assigned or merged:
-                team.message_post(body=msg)
-        _logger.info('Round Robin CRON: finished.')
+                team.sudo().message_post(body=msg)
 
     #  Manual "Assign Leads" Button 
     def action_assign_leads(self):
@@ -43,11 +40,11 @@ class CrmTeam(models.Model):
             assigned, merged = team._assign_unassigned_leads_round_robin()
             msg = (
                 f'Round Robin (Manual): {assigned} lead(s) assigned. '
-                # f'{team.rr_last_user_id.name or "N/A"}'
+                f'{team.rr_last_user_id.name or "N/A"}'
             )
             if merged:
                 msg += f' | {merged} duplicate(s) merged.'
-            team.message_post(body=msg)
+            team.sudo().message_post(body=msg)
             total_assigned += assigned
             total_merged += merged
 
@@ -110,41 +107,36 @@ class CrmTeam(models.Model):
                 duplicates.ids,
             )
 
-        try:
-            all_leads = master | duplicates
+            try:
+                all_leads = master | duplicates
 
-            wizard = self.env['crm.merge.opportunity'].sudo().with_context(
-                active_ids=all_leads.ids,
-                active_model='crm.lead',
-                active_id=master.id,
-            ).create({
-                'opportunity_ids': [(6, 0, all_leads.ids)],
-            })
+                wizard = self.env['crm.merge.opportunity'].sudo().create({
+                    'opportunity_ids': [(6, 0, all_leads.ids)],
+                })
 
-            wizard.with_context(
-                mail_create_nosubscribe=False,
-                mail_post_autofollow=True,
-            ).action_merge()
+                wizard.action_merge()
 
-            surviving_lead = self.env['crm.lead'].sudo().browse(master.id)
+                # IMPORTANT
+                # reload surviving merged lead
+                surviving_lead = self.env['crm.lead'].sudo().browse(master.id)
 
-            if surviving_lead.exists() and surviving_lead.active:
-                unique_leads |= surviving_lead
+                if surviving_lead.exists() and surviving_lead.active:
+                    unique_leads |= surviving_lead
 
-            merged_count += len(duplicates)
+                merged_count += len(duplicates)
 
-        except Exception as e:
+            except Exception as e:
 
-            _logger.warning(
-                'RR Merge failed (%s). Archiving duplicates.',
-                e
-            )
+                _logger.warning(
+                    'RR Merge failed (%s). Archiving duplicates.',
+                    e
+                )
 
-            duplicates.sudo().write({
-                'active': False
-            })
+                duplicates.sudo().write({
+                    'active': False
+                })
 
-            unique_leads |= master
+                unique_leads |= master
 
         return unique_leads.filtered(lambda l: l.exists() and l.active), merged_count
     # Team Members 
